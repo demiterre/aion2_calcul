@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aion 2 상급 마석 기댓값 계산기</title>
+    <title>상급 마석 기댓값 계산기</title>
     <style>
         body { font-family: 'Malgun Gothic', sans-serif; background-color: #1e1e1e; color: #fff; margin: 0; padding: 20px; display: flex; justify-content: center; }
         .container { background-color: #2d2d2d; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); max-width: 500px; width: 100%; }
@@ -17,13 +17,14 @@
         .btn-calc { width: 100%; padding: 15px; background-color: #0078d7; color: white; border: none; border-radius: 5px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 20px; transition: background 0.3s; }
         .btn-calc:hover { background-color: #005a9e; }
         .btn-calc:disabled { background-color: #555; cursor: not-allowed; }
-        .result-box { background-color: #111; border: 1px solid #444; padding: 15px; border-radius: 5px; margin-top: 10px; min-height: 120px; white-space: pre-wrap; font-size: 14px; line-height: 1.5; color: #ddd;}
+        .result-box { background-color: #111; border: 1px solid #444; padding: 15px; border-radius: 5px; margin-top: 10px; min-height: 180px; white-space: pre-wrap; font-size: 14px; line-height: 1.6; color: #ddd;}
+        .highlight { color: #ffeb3b; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>🎯 [Aion 2] 상급 마석 기댓값 계산기</h1>
+    <h1>🎯 상급 마석 기댓값 계산기</h1>
 
     <div class="section-title">1. 장비 등급 (슬롯 개수) 선택</div>
     <div class="radio-group row">
@@ -70,16 +71,16 @@
 
     const optionNames = Object.keys(optionsData);
     const optionWeights = Object.values(optionsData);
+    const optionProbs = optionWeights.map(w => w / 100.0);
 
-    // 드롭다운 옵션 목록 ('꽝' 제외)
-    const selectableOptions = optionNames.filter(name => name !== "꽝 (기타 무효 옵션)");
+    const selectableOptions = optionNames.filter(name => name !== "꽝 (기타 무효 옵션)" && name !== "선택 안 함");
 
-    // UI 초기화: 옵션 선택기 5개 만들기
+    // UI 초기화
     const container = document.getElementById('optionsContainer');
     for (let i = 1; i <= 5; i++) {
         let row = document.createElement('div');
         row.className = 'row';
-        row.innerHTML = `<label style="width: 60px;">옵션 ${i} :</label><select id="target${i}"></select>`;
+        row.innerHTML = `<label style="width: 60px;">옵션 ${i} :</label><select id="target${i}"><option value="선택 안 함">선택 안 함</option></select>`;
         container.appendChild(row);
         
         let selectElement = document.getElementById(`target${i}`);
@@ -91,7 +92,6 @@
         });
     }
 
-    // 시뮬레이션 횟수 직접 입력 토글
     const simSelect = document.getElementById('simCountSelect');
     const simInput = document.getElementById('simCountInput');
     simSelect.addEventListener('change', (e) => {
@@ -102,12 +102,48 @@
         }
     });
 
-    // 가중치에 따른 랜덤 선택 함수
+    // 1. 정확한 수학적 확률 계산 함수
+    function getExactProbability(slots, targets) {
+        if (targets.length > slots) return 0;
+
+        let totalExactProb = 0;
+
+        function traverse(depth, currentProb, currentRolls) {
+            if (depth === slots) {
+                let temp = [...currentRolls];
+                let success = true;
+                for(let i=0; i<targets.length; i++){
+                    let idx = temp.indexOf(targets[i]);
+                    if(idx !== -1){
+                        temp.splice(idx, 1);
+                    } else {
+                        success = false;
+                        break;
+                    }
+                }
+                if(success) totalExactProb += currentProb;
+                return;
+            }
+
+            for(let i=1; i<optionNames.length; i++) { 
+                if (optionProbs[i] > 0) {
+                    currentRolls.push(optionNames[i]);
+                    traverse(depth + 1, currentProb * optionProbs[i], currentRolls);
+                    currentRolls.pop();
+                }
+            }
+        }
+
+        traverse(0, 1.0, []);
+        return totalExactProb;
+    }
+
+    // 2. 랜덤 시뮬레이션용 함수
     function getRandomOption() {
-        let rand = Math.random() * 100;
+        let rand = Math.random();
         let sum = 0;
-        for (let i = 0; i < optionNames.length; i++) {
-            sum += optionWeights[i];
+        for (let i = 1; i < optionNames.length; i++) {
+            sum += optionProbs[i];
             if (rand <= sum) return optionNames[i];
         }
         return "꽝 (기타 무효 옵션)";
@@ -129,21 +165,26 @@
             return;
         }
 
+        if (targets.length > slots) {
+            resultBox.innerText = `❌ ${slots}슬롯 장비에는 ${targets.length}개의 옵션을 띄울 수 없습니다.`;
+            return;
+        }
+
         let simulations = simSelect.value === 'custom' ? parseInt(simInput.value) : parseInt(simSelect.value);
         if (isNaN(simulations) || simulations <= 0) {
             resultBox.innerText = "❌ 올바른 시뮬레이션 횟수를 입력해 주세요.";
             return;
         }
 
-        // UI 잠금 및 로딩 표시
         calcBtn.disabled = true;
         calcBtn.innerText = "계산 중입니다...";
-        resultBox.innerText = `${simulations.toLocaleString()}회 시뮬레이션을 진행 중입니다...\n잠시만 기다려주세요.`;
+        resultBox.innerText = `확률을 연산하고 있습니다...\n잠시만 기다려주세요.`;
 
-        // UI 업데이트를 위해 setTimeout 사용 (브라우저 멈춤 방지)
         setTimeout(() => {
-            let successCount = 0;
+            const exactProb = getExactProbability(slots, targets);
+            const exactTries = exactProb > 0 ? 1 / exactProb : 0;
 
+            let successCount = 0;
             for (let i = 0; i < simulations; i++) {
                 let rolled = [];
                 for (let s = 0; s < slots; s++) rolled.push(getRandomOption());
@@ -163,22 +204,26 @@
                 if (success) successCount++;
             }
 
-            // 결과 출력
-            if (successCount > 0) {
-                let prob = successCount / simulations;
-                let expectedTries = 1 / prob;
+            let simProb = successCount / simulations;
+            let simTries = simProb > 0 ? 1 / simProb : 0;
 
-                resultBox.innerText = `🎯 시뮬레이션 완료 (${simulations.toLocaleString()}회 기준)\n\n` +
-                                      `- 해당 조합 성공 확률 : 약 ${(prob * 100).toFixed(6)}%\n` +
-                                      `- 평균 필요 마석 개수 : 약 ${Math.round(expectedTries).toLocaleString()} 개`;
+            let resMsg = `📊 <span class="highlight">[수학적 확률 (정확한 기댓값)]</span>\n`;
+            resMsg += `- 성공 확률 : 약 <span class="highlight">${(exactProb * 100).toFixed(6)}%</span>\n`;
+            resMsg += `- 필요 마석 개수 : 약 <span class="highlight">${Math.round(exactTries).toLocaleString()} 개</span>\n\n`;
+
+            resMsg += `🎲 <span style="color:#aaa;">[시뮬레이션 결과 (${simulations.toLocaleString()}회)]</span>\n`;
+            if (successCount > 0) {
+                resMsg += `<span style="color:#aaa;">- 성공 횟수 : ${successCount.toLocaleString()} 번\n`;
+                resMsg += `- 체감 확률 : 약 ${(simProb * 100).toFixed(6)}%\n`;
+                resMsg += `- 체감 필요 개수 : 약 ${Math.round(simTries).toLocaleString()} 개</span>`;
             } else {
-                resultBox.innerText = `❌ 확률이 너무 낮습니다.\n\n${simulations.toLocaleString()}번의 시뮬레이션 동안\n해당 조합이 단 한 번도 등장하지 않았습니다.\n(시뮬레이션 횟수를 더 늘려서 다시 시도해 보세요.)`;
+                resMsg += `<span style="color:#ff6b6b;">- 단 한 번도 등장하지 않았습니다. (운이 없거나 확률이 너무 낮음)</span>`;
             }
 
-            // UI 복구
+            resultBox.innerHTML = resMsg;
             calcBtn.disabled = false;
             calcBtn.innerText = "▶ 기댓값 시뮬레이션 시작";
-        }, 50); // 50ms 지연 후 실행
+        }, 50);
     }
 </script>
 

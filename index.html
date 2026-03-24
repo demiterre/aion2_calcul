@@ -6,7 +6,7 @@
     <title>상급 마석 기댓값 계산기</title>
     <style>
         body { font-family: 'Malgun Gothic', sans-serif; background-color: #1e1e1e; color: #fff; margin: 0; padding: 20px; display: flex; justify-content: center; }
-        .container { background-color: #2d2d2d; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); max-width: 500px; width: 100%; }
+        .container { background-color: #2d2d2d; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); max-width: 550px; width: 100%; }
         h1 { font-size: 20px; text-align: center; border-bottom: 2px solid #555; padding-bottom: 10px; margin-top: 0; }
         .section-title { font-size: 15px; font-weight: bold; margin: 20px 0 10px 0; color: #4da6ff; }
         .row { margin-bottom: 10px; display: flex; align-items: center; }
@@ -14,7 +14,7 @@
         select { flex-grow: 1; margin-left: 10px; }
         input[type="radio"] { margin-right: 5px; }
         .radio-group { display: flex; gap: 20px; }
-        .btn-calc { width: 100%; padding: 15px; background-color: #0078d7; color: white; border: none; border-radius: 5px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 20px; transition: background 0.3s; }
+        .btn-calc { width: 100%; padding: 15px; background-color: #0078d7; color: white; border: none; border-radius: 5px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 25px; transition: background 0.3s; }
         .btn-calc:hover { background-color: #005a9e; }
         .btn-calc:disabled { background-color: #555; cursor: not-allowed; }
         .result-box { background-color: #111; border: 1px solid #444; padding: 15px; border-radius: 5px; margin-top: 10px; min-height: 180px; white-space: pre-wrap; font-size: 14px; line-height: 1.6; color: #ddd;}
@@ -45,35 +45,73 @@
         <span>회</span>
     </div>
 
-    <div class="section-title">3. 목표 옵션 선택 (최대 5개)</div>
+    <div class="section-title">3. 특정 옵션 고정 (선택 사항)</div>
     <div id="optionsContainer">
         </div>
 
+    <div class="section-title">4. 스탯 합산 목표 설정 (선택 사항)</div>
+    <div class="row">
+        <select id="sumTypeSelect" style="flex-grow: 1; margin-left: 0; margin-right: 10px;">
+            <option value="none">선택 안 함</option>
+            <option value="attack">공격력 합산</option>
+            <option value="accuracy">명중 합산</option>
+            <option value="crit">치명타 합산</option>
+            <option value="atk_acc">공격+명중 합산</option>
+            <option value="acc_crit">명중+치명 합산</option>
+            <option value="atk_crit">공격+치명 합산</option>
+            <option value="atk_acc_crit">공격+명중+치명 합산</option>
+        </select>
+        <input type="number" id="sumValueInput" style="width: 100px;" placeholder="예: 25">
+        <span style="margin-left: 5px;">이상</span>
+    </div>
+
     <button id="calcBtn" class="btn-calc" onclick="startSimulation()">▶ 기댓값 시뮬레이션 시작</button>
 
-    <div class="section-title">4. 계산 결과</div>
+    <div class="section-title">5. 계산 결과</div>
     <div id="resultBox" class="result-box">결과가 여기에 표시됩니다.</div>
 </div>
 
 <script>
-    // 확률 데이터 (합계 100%)
+    // 확률 데이터
     const optionsData = {
         "선택 안 함": 0.0,
-        "[최상급] 공격력 +10": 1.5,
-        "[최상급] 추가 명중 +15": 1.5,
-        "[최상급] 치명타 +15": 1.5,
-        "[최상급] 피해 증폭 +100": 0.075,
-        "[최상급] 무기 피해 증폭 +100": 0.075,
-        "[최상급] 치명타 피해 증폭 +100": 0.075,
-        "[최상급] 후방 피해 증폭 +100": 0.075,
-        "꽝 (기타 무효 옵션)": 95.2
+        "[최상급] 공격력 +10": 1.5, "[상급] 공격력 +5": 3.5, "[기본] 공격력 +3": 5.0,
+        "[최상급] 추가 명중 +15": 1.5, "[상급] 추가 명중 +10": 3.5, "[기본] 추가 명중 +7": 5.0,
+        "[최상급] 치명타 +15": 1.5, "[상급] 치명타 +10": 3.5, "[기본] 치명타 +7": 5.0,
+        "[최상급] 피해 증폭 +100": 0.075, "[상급] 피해 증폭 +30": 0.175, "[기본] 피해 증폭 +10": 0.25,
+        "[최상급] 무기 피해 증폭 +100": 0.075, "[상급] 무기 피해 증폭 +30": 0.175, "[기본] 무기 피해 증폭 +10": 0.25,
+        "[최상급] 치명타 피해 증폭 +100": 0.075, "[상급] 치명타 피해 증폭 +30": 0.175, "[기본] 치명타 피해 증폭 +10": 0.25,
+        "[최상급] 후방 피해 증폭 +100": 0.075, "[상급] 후방 피해 증폭 +30": 0.175, "[기본] 후방 피해 증폭 +10": 0.25,
+        "꽝 (기타 무효 옵션)": 68.0
     };
 
     const optionNames = Object.keys(optionsData);
     const optionWeights = Object.values(optionsData);
     const optionProbs = optionWeights.map(w => w / 100.0);
-
     const selectableOptions = optionNames.filter(name => name !== "꽝 (기타 무효 옵션)" && name !== "선택 안 함");
+
+    // 스탯 수치 파싱 및 저장
+    const statValues = {};
+    optionNames.forEach(opt => {
+        let match = opt.match(/\] (.+) \+(\d+)/);
+        if(match) {
+            statValues[opt] = { name: match[1], val: parseInt(match[2]) };
+        } else {
+            statValues[opt] = { name: "none", val: 0 };
+        }
+    });
+
+    // 합산 목표 매핑
+    const sumTypeMap = {
+        "none": [],
+        "attack": ["공격력"],
+        "accuracy": ["추가 명중"],
+        "crit": ["치명타"],
+        "atk_acc": ["공격력", "추가 명중"],
+        "acc_crit": ["추가 명중", "치명타"],
+        "atk_crit": ["공격력", "치명타"],
+        "atk_acc_crit": ["공격력", "추가 명중", "치명타"]
+    };
 
     // UI 초기화
     const container = document.getElementById('optionsContainer');
@@ -82,12 +120,10 @@
         row.className = 'row';
         row.innerHTML = `<label style="width: 60px;">옵션 ${i} :</label><select id="target${i}"><option value="선택 안 함">선택 안 함</option></select>`;
         container.appendChild(row);
-        
         let selectElement = document.getElementById(`target${i}`);
         selectableOptions.forEach(opt => {
             let option = document.createElement('option');
-            option.value = opt;
-            option.text = opt;
+            option.value = opt; option.text = opt;
             selectElement.appendChild(option);
         });
     }
@@ -102,25 +138,42 @@
         }
     });
 
-    // 1. 정확한 수학적 확률 계산 함수
-    function getExactProbability(slots, targets) {
-        if (targets.length > slots) return 0;
+    // 배열 내 스탯 합산 함수
+    function calculateSum(rolls, targetStatNames) {
+        let sum = 0;
+        for (let i = 0; i < rolls.length; i++) {
+            let statInfo = statValues[rolls[i]];
+            if (targetStatNames.includes(statInfo.name)) {
+                sum += statInfo.val;
+            }
+        }
+        return sum;
+    }
 
+    // 1. 수학적 확률 계산
+    function getExactProbability(slots, targets, targetSumType, targetSumValue, targetStatNames) {
+        if (targets.length > slots) return 0;
         let totalExactProb = 0;
 
         function traverse(depth, currentProb, currentRolls) {
             if (depth === slots) {
-                let temp = [...currentRolls];
                 let success = true;
+                let temp = [...currentRolls];
+                
+                // 1) 고정 옵션 검사
                 for(let i=0; i<targets.length; i++){
                     let idx = temp.indexOf(targets[i]);
-                    if(idx !== -1){
-                        temp.splice(idx, 1);
-                    } else {
+                    if(idx !== -1) temp.splice(idx, 1);
+                    else { success = false; break; }
+                }
+
+                // 2) 합산치 검사
+                if (success && targetSumType !== "none" && targetSumValue > 0) {
+                    if (calculateSum(currentRolls, targetStatNames) < targetSumValue) {
                         success = false;
-                        break;
                     }
                 }
+
                 if(success) totalExactProb += currentProb;
                 return;
             }
@@ -133,7 +186,6 @@
                 }
             }
         }
-
         traverse(0, 1.0, []);
         return totalExactProb;
     }
@@ -151,17 +203,23 @@
 
     function startSimulation() {
         const slots = parseInt(document.querySelector('input[name="slots"]:checked').value);
+        
         let targets = [];
         for (let i = 1; i <= 5; i++) {
             let val = document.getElementById(`target${i}`).value;
             if (val !== "선택 안 함") targets.push(val);
         }
 
+        let targetSumType = document.getElementById('sumTypeSelect').value;
+        let targetSumValue = parseInt(document.getElementById('sumValueInput').value) || 0;
+        let targetStatNames = sumTypeMap[targetSumType];
+
         const resultBox = document.getElementById('resultBox');
         const calcBtn = document.getElementById('calcBtn');
 
-        if (targets.length === 0) {
-            resultBox.innerText = "❌ 목표 옵션을 최소 1개 이상 선택해 주세요.";
+        // 예외 처리
+        if (targets.length === 0 && (targetSumType === "none" || targetSumValue <= 0)) {
+            resultBox.innerText = "❌ 특정 옵션을 고정하거나 스탯 합산 목표를 입력해 주세요.";
             return;
         }
 
@@ -180,8 +238,9 @@
         calcBtn.innerText = "계산 중입니다...";
         resultBox.innerText = `확률을 연산하고 있습니다...\n잠시만 기다려주세요.`;
 
+        // UI 멈춤 방지
         setTimeout(() => {
-            const exactProb = getExactProbability(slots, targets);
+            const exactProb = getExactProbability(slots, targets, targetSumType, targetSumValue, targetStatNames);
             const exactTries = exactProb > 0 ? 1 / exactProb : 0;
 
             let successCount = 0;
@@ -192,15 +251,20 @@
                 let success = true;
                 let rolledCopy = [...rolled];
                 
+                // 1) 고정 옵션 체크
                 for (let t = 0; t < targets.length; t++) {
                     let idx = rolledCopy.indexOf(targets[t]);
-                    if (idx !== -1) {
-                        rolledCopy.splice(idx, 1);
-                    } else {
+                    if (idx !== -1) rolledCopy.splice(idx, 1);
+                    else { success = false; break; }
+                }
+
+                // 2) 합산치 체크
+                if (success && targetSumType !== "none" && targetSumValue > 0) {
+                    if (calculateSum(rolled, targetStatNames) < targetSumValue) {
                         success = false;
-                        break;
                     }
                 }
+
                 if (success) successCount++;
             }
 

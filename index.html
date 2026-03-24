@@ -65,9 +65,18 @@
         <span style="margin-left: 5px;">이상</span>
     </div>
 
+    <div class="section-title">5. 최상급 피증류 아무거나 포함 (선택 사항)</div>
+    <div class="row">
+        <select id="topAmpSelect" style="flex-grow: 1; margin-left: 0;">
+            <option value="0">선택 안 함</option>
+            <option value="1">종류 무관 1개 이상 포함</option>
+            <option value="2">종류 무관 2개 이상 포함</option>
+        </select>
+    </div>
+
     <button id="calcBtn" class="btn-calc" onclick="startSimulation()">▶ 기댓값 시뮬레이션 시작</button>
 
-    <div class="section-title">5. 계산 결과</div>
+    <div class="section-title">6. 계산 결과</div>
     <div id="resultBox" class="result-box">결과가 여기에 표시됩니다.</div>
 </div>
 
@@ -89,6 +98,14 @@
     const optionWeights = Object.values(optionsData);
     const optionProbs = optionWeights.map(w => w / 100.0);
     const selectableOptions = optionNames.filter(name => name !== "꽝 (기타 무효 옵션)" && name !== "선택 안 함");
+
+    // 최상급 피증류 리스트
+    const topAmpList = [
+        "[최상급] 피해 증폭 +100",
+        "[최상급] 무기 피해 증폭 +100",
+        "[최상급] 치명타 피해 증폭 +100",
+        "[최상급] 후방 피해 증폭 +100"
+    ];
 
     // 스탯 수치 파싱 및 저장
     const statValues = {};
@@ -138,7 +155,6 @@
         }
     });
 
-    // 배열 내 스탯 합산 함수
     function calculateSum(rolls, targetStatNames) {
         let sum = 0;
         for (let i = 0; i < rolls.length; i++) {
@@ -151,7 +167,7 @@
     }
 
     // 1. 수학적 확률 계산
-    function getExactProbability(slots, targets, targetSumType, targetSumValue, targetStatNames) {
+    function getExactProbability(slots, targets, targetSumType, targetSumValue, targetStatNames, targetTopAmpCount) {
         if (targets.length > slots) return 0;
         let totalExactProb = 0;
 
@@ -172,6 +188,15 @@
                     if (calculateSum(currentRolls, targetStatNames) < targetSumValue) {
                         success = false;
                     }
+                }
+
+                // 3) 최상급 피증류 무관 획득 개수 검사
+                if (success && targetTopAmpCount > 0) {
+                    let count = 0;
+                    for (let i = 0; i < currentRolls.length; i++) {
+                        if (topAmpList.includes(currentRolls[i])) count++;
+                    }
+                    if (count < targetTopAmpCount) success = false;
                 }
 
                 if(success) totalExactProb += currentProb;
@@ -213,13 +238,16 @@
         let targetSumType = document.getElementById('sumTypeSelect').value;
         let targetSumValue = parseInt(document.getElementById('sumValueInput').value) || 0;
         let targetStatNames = sumTypeMap[targetSumType];
+        
+        // 추가: 피증류 획득 조건 가져오기
+        let targetTopAmpCount = parseInt(document.getElementById('topAmpSelect').value) || 0;
 
         const resultBox = document.getElementById('resultBox');
         const calcBtn = document.getElementById('calcBtn');
 
-        // 예외 처리
-        if (targets.length === 0 && (targetSumType === "none" || targetSumValue <= 0)) {
-            resultBox.innerText = "❌ 특정 옵션을 고정하거나 스탯 합산 목표를 입력해 주세요.";
+        // 예외 처리 (3가지 조건 중 아무것도 입력하지 않았을 때)
+        if (targets.length === 0 && (targetSumType === "none" || targetSumValue <= 0) && targetTopAmpCount === 0) {
+            resultBox.innerText = "❌ 특정 옵션을 고정하거나 합산 목표, 혹은 피증류 획득 조건을 설정해 주세요.";
             return;
         }
 
@@ -240,7 +268,7 @@
 
         // UI 멈춤 방지
         setTimeout(() => {
-            const exactProb = getExactProbability(slots, targets, targetSumType, targetSumValue, targetStatNames);
+            const exactProb = getExactProbability(slots, targets, targetSumType, targetSumValue, targetStatNames, targetTopAmpCount);
             const exactTries = exactProb > 0 ? 1 / exactProb : 0;
 
             let successCount = 0;
@@ -265,13 +293,22 @@
                     }
                 }
 
+                // 3) 최상급 피증류 무관 획득 개수 체크
+                if (success && targetTopAmpCount > 0) {
+                    let count = 0;
+                    for (let j = 0; j < rolled.length; j++) {
+                        if (topAmpList.includes(rolled[j])) count++;
+                    }
+                    if (count < targetTopAmpCount) success = false;
+                }
+
                 if (success) successCount++;
             }
 
             let simProb = successCount / simulations;
             let simTries = simProb > 0 ? 1 / simProb : 0;
 
-            let resMsg = `📊 <span class="highlight">[확률 기댓값]</span>\n`;
+            let resMsg = `📊 <span class="highlight">[확률적 기댓값]</span>\n`;
             resMsg += `- 성공 확률 : 약 <span class="highlight">${(exactProb * 100).toFixed(6)}%</span>\n`;
             resMsg += `- 필요 마석 개수 : 약 <span class="highlight">${Math.round(exactTries).toLocaleString()} 개</span>\n\n`;
 

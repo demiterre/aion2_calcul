@@ -271,7 +271,7 @@
             let simProb = successCount / simulations;
             let simTries = simProb > 0 ? 1 / simProb : 0;
 
-            let resMsg = `📊 <span class="highlight">[수학적 확률]</span>\n`;
+            let resMsg = `📊 <span class="highlight">[확률 기댓값]</span>\n`;
             resMsg += `- 성공 확률 : 약 <span class="highlight">${(exactProb * 100).toFixed(6)}%</span>\n`;
             resMsg += `- 필요 마석 개수 : 약 <span class="highlight">${Math.round(exactTries).toLocaleString()} 개</span>\n\n`;
 
